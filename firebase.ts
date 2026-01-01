@@ -1,29 +1,35 @@
 // =======================================
-// FIREBASE CORE IMPORTS
+// FIREBASE IMPORTS
 // =======================================
 import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, getDocs, query, where } from "firebase/firestore";
-import { getDatabase, ref, set, get, onValue, update } from "firebase/database";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  onSnapshot,
+  getDocs,
+  query,
+  where,
+  deleteDoc
+} from "firebase/firestore";
+import {
+  getDatabase,
+  ref,
+  set,
+  get,
+  onValue,
+  update,
+  remove
+} from "firebase/database";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 // =======================================
-// 🔹 OLD DEFAULT PROJECT (STUDENTS APP)
+// 🔥 NEW FIREBASE PROJECT (JAN 2025 ONLY)
 // =======================================
-const defaultFirebaseConfig = {
-  apiKey: "AIzaSyC7N3IOa7GRETNRBo8P-QKVFzg2bLqoEco",
-  authDomain: "students-app-deae5.firebaseapp.com",
-  databaseURL: "https://students-app-deae5-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "students-app-deae5",
-  storageBucket: "students-app-deae5.firebasestorage.app",
-  messagingSenderId: "128267767708",
-  appId: "1:128267767708:web:08ed73b1563b2f3eb60259"
-};
-
-// =======================================
-// 🔹 NEW PROJECT (JAN 2025 – NSTA)
-// =======================================
-const jan2025FirebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyAKuIGYmyo4sDbz3ET5zpZmCH5AnQASZxI",
   authDomain: "jan2025-f69a8.firebaseapp.com",
   databaseURL: "https://jan2025-f69a8-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -34,31 +40,7 @@ const jan2025FirebaseConfig = {
 };
 
 // =======================================
-// 🔁 ACTIVE CONFIG SELECTOR
-// priority:
-// 1️⃣ localStorage override
-// 2️⃣ JAN 2025 project
-// 3️⃣ default project
-// =======================================
-const getActiveConfig = () => {
-  try {
-    const stored = localStorage.getItem("nst_firebase_config");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed?.apiKey) return parsed;
-    }
-  } catch (e) {
-    console.error("Invalid custom firebase config", e);
-  }
-
-  // 🔥 CURRENTLY USING NEW PROJECT
-  return jan2025FirebaseConfig;
-};
-
-const firebaseConfig = getActiveConfig();
-
-// =======================================
-// 🔥 SAFE INITIALIZATION (NO DUPLICATE APP)
+// SAFE INITIALIZATION (VERCEL / JULES)
 // =======================================
 const app =
   getApps().length === 0
@@ -66,7 +48,7 @@ const app =
     : getApps()[0];
 
 // =======================================
-// 🔹 SERVICES
+// SERVICES
 // =======================================
 export const auth = getAuth(app);
 export const db = getFirestore(app);
@@ -75,14 +57,13 @@ export const analytics =
   typeof window !== "undefined" ? getAnalytics(app) : null;
 
 // =======================================
-// 🔹 AUTH LISTENER
+// AUTH LISTENER
 // =======================================
-export const subscribeToAuth = (callback: (user: any) => void) => {
-  return onAuthStateChanged(auth, (user) => callback(user));
-};
+export const subscribeToAuth = (cb: (user: any) => void) =>
+  onAuthStateChanged(auth, cb);
 
 // =======================================
-// 👤 USER SYNC (RTDB + FIRESTORE)
+// 👤 USER FEATURES (FULL)
 // =======================================
 export const saveUserToLive = async (user: any) => {
   if (!user?.id) return;
@@ -93,19 +74,12 @@ export const saveUserToLive = async (user: any) => {
   ]);
 };
 
-export const subscribeToUsers = (callback: (users: any[]) => void) => {
-  const q = collection(db, "users");
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => d.data()));
-  });
-};
-
 export const getUserData = async (userId: string) => {
-  const rtdbSnap = await get(ref(rtdb, `users/${userId}`));
-  if (rtdbSnap.exists()) return rtdbSnap.val();
+  const r = await get(ref(rtdb, `users/${userId}`));
+  if (r.exists()) return r.val();
 
-  const fsSnap = await getDoc(doc(db, "users", userId));
-  return fsSnap.exists() ? fsSnap.data() : null;
+  const f = await getDoc(doc(db, "users", userId));
+  return f.exists() ? f.data() : null;
 };
 
 export const getUserByEmail = async (email: string) => {
@@ -114,31 +88,33 @@ export const getUserByEmail = async (email: string) => {
   return snap.empty ? null : snap.docs[0].data();
 };
 
+export const subscribeToUsers = (cb: (users: any[]) => void) =>
+  onSnapshot(collection(db, "users"), s =>
+    cb(s.docs.map(d => d.data()))
+  );
+
 // =======================================
 // ⚙️ SYSTEM SETTINGS
 // =======================================
-export const saveSystemSettings = async (settings: any) => {
-  await Promise.all([
+export const saveSystemSettings = async (settings: any) =>
+  Promise.all([
     set(ref(rtdb, "system_settings"), settings),
     setDoc(doc(db, "config", "system_settings"), settings)
   ]);
-};
 
-export const subscribeToSettings = (callback: (s: any) => void) => {
-  return onSnapshot(doc(db, "config", "system_settings"), (snap) => {
-    if (snap.exists()) callback(snap.data());
+export const subscribeToSettings = (cb: (s: any) => void) =>
+  onSnapshot(doc(db, "config", "system_settings"), d => {
+    if (d.exists()) cb(d.data());
   });
-};
 
 // =======================================
 // 📚 CONTENT / CHAPTERS
 // =======================================
-export const saveChapterData = async (key: string, data: any) => {
-  await Promise.all([
+export const saveChapterData = async (key: string, data: any) =>
+  Promise.all([
     set(ref(rtdb, `content_data/${key}`), data),
     setDoc(doc(db, "content_data", key), data)
   ]);
-};
 
 export const getChapterData = async (key: string) => {
   const r = await get(ref(rtdb, `content_data/${key}`));
@@ -148,14 +124,26 @@ export const getChapterData = async (key: string) => {
   return f.exists() ? f.data() : null;
 };
 
-export const subscribeToChapterData = (key: string, cb: (d: any) => void) => {
-  return onValue(ref(rtdb, `content_data/${key}`), snap => {
-    if (snap.exists()) cb(snap.val());
+export const subscribeToChapterData = (key: string, cb: (d: any) => void) =>
+  onValue(ref(rtdb, `content_data/${key}`), s => {
+    if (s.exists()) cb(s.val());
   });
+
+// =======================================
+// 🔗 BULK SAVE (ADMIN DASHBOARD FIX)
+// =======================================
+export const bulkSaveLinks = async (updates: Record<string, any>) => {
+  await update(ref(rtdb, "content_links"), updates);
+
+  await Promise.all(
+    Object.entries(updates).map(([k, v]) =>
+      setDoc(doc(db, "content_data", k), v)
+    )
+  );
 };
 
 // =======================================
-// 🧪 TEST RESULT
+// 🧪 TEST RESULTS
 // =======================================
 export const saveTestResult = async (userId: string, attempt: any) => {
   const id = `${attempt.testId}_${Date.now()}`;
@@ -163,7 +151,15 @@ export const saveTestResult = async (userId: string, attempt: any) => {
 };
 
 // =======================================
-// 🔌 CONNECTION CHECK (BUILD SAFE)
+// 🟢 USER STATUS
+// =======================================
+export const updateUserStatus = async (userId: string) =>
+  update(ref(rtdb, `users/${userId}`), {
+    lastActiveTime: new Date().toISOString()
+  });
+
+// =======================================
+// 🔌 BUILD SAFETY
 // =======================================
 export const checkFirebaseConnection = () => true;
 
