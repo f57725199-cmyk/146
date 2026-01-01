@@ -1,28 +1,47 @@
 // ===============================
-// FIREBASE INIT – JAN 2025 PROJECT
+// FIREBASE – FINAL CLEAN SETUP
 // ===============================
 
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, doc, setDoc, deleteDoc } from "firebase/firestore";
-import { getDatabase, ref, set, update, onValue } from "firebase/database";
-import { getStorage } from "firebase/storage";
+import { getAnalytics } from "firebase/analytics";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  onSnapshot,
+  getDocs,
+  query,
+  where
+} from "firebase/firestore";
+import {
+  getDatabase,
+  ref,
+  set,
+  get,
+  onValue,
+  update
+} from "firebase/database";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 // ===============================
-// FIREBASE CONFIG
+// 🔥 ACTIVE FIREBASE PROJECT (ONLY ONE)
 // ===============================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAKuIGYmyo4sDbz3ET5zpZmCH5AnQASZxI",
-  authDomain: "jan2025-f69a8.firebaseapp.com",
-  projectId: "jan2025-f69a8",
-  storageBucket: "jan2025-f69a8.firebasestorage.app",
-  messagingSenderId: "158470334860",
-  appId: "1:158470334860:web:e67ac809060da43da3cea9"
+  apiKey: "AIzaSyDNAarkY9MquMpJzKuXt4BayK6AHGImyr0",
+  authDomain: "dec2025-96ecd.firebaseapp.com",
+  projectId: "dec2025-96ecd",
+  storageBucket: "dec2025-96ecd.firebasestorage.app",
+  messagingSenderId: "617035489092",
+  appId: "1:617035489092:web:cf470004dfcb97e41cc111",
+  databaseURL:
+    "https://dec2025-96ecd-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
 // ===============================
-// SAFE INIT (VERCEL / VITE)
+// SAFE INIT (VITE / VERCEL)
 // ===============================
 
 const app =
@@ -30,53 +49,83 @@ const app =
     ? initializeApp(firebaseConfig)
     : getApps()[0];
 
-// ===============================
-// EXPORT CORE SERVICES
-// ===============================
-
-export const auth = getAuth(app);
+const analytics = getAnalytics(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
-export const storage = getStorage(app);
+export const auth = getAuth(app);
 
 // ===============================
-// 🔥 STUDENT FEATURES FUNCTIONS
+// AUTH
 // ===============================
 
-// bulk save links (ERROR FIX HERE)
-export const bulkSaveLinks = async (links: any[]) => {
-  const baseRef = ref(rtdb, "student_links");
-  for (const item of links) {
-    await set(ref(rtdb, `student_links/${item.id}`), item);
-  }
+export const subscribeToAuth = (cb: any) =>
+  onAuthStateChanged(auth, cb);
+
+// ===============================
+// USERS
+// ===============================
+
+export const saveUserToLive = async (user: any) => {
+  if (!user?.id) return;
+  await set(ref(rtdb, `users/${user.id}`), user);
+  await setDoc(doc(db, "users", user.id), user);
 };
 
-// save chapter / lesson data
+export const subscribeToUsers = (cb: any) =>
+  onSnapshot(collection(db, "users"), snap =>
+    cb(snap.docs.map(d => d.data()))
+  );
+
+export const getUserByEmail = async (email: string) => {
+  const q = query(
+    collection(db, "users"),
+    where("email", "==", email)
+  );
+  const s = await getDocs(q);
+  return s.empty ? null : s.docs[0].data();
+};
+
+// ===============================
+// SETTINGS
+// ===============================
+
+export const saveSystemSettings = async (data: any) => {
+  await set(ref(rtdb, "system_settings"), data);
+  await setDoc(doc(db, "config", "system_settings"), data);
+};
+
+export const subscribeToSettings = (cb: any) =>
+  onValue(ref(rtdb, "system_settings"), s => cb(s.val()));
+
+// ===============================
+// CONTENT / CHAPTERS
+// ===============================
+
+export const bulkSaveLinks = async (data: Record<string, any>) =>
+  update(ref(rtdb, "content_links"), data);
+
 export const saveChapterData = async (id: string, data: any) => {
-  await setDoc(doc(db, "chapters", id), data);
+  await set(ref(rtdb, `content_data/${id}`), data);
+  await setDoc(doc(db, "content_data", id), data);
 };
 
-// delete chapter
-export const deleteChapter = async (id: string) => {
-  await deleteDoc(doc(db, "chapters", id));
+export const getChapterData = async (id: string) => {
+  const r = await get(ref(rtdb, `content_data/${id}`));
+  if (r.exists()) return r.val();
+  const f = await getDoc(doc(db, "content_data", id));
+  return f.exists() ? f.data() : null;
 };
 
-// save system settings
-export const saveSystemSettings = async (settings: any) => {
-  await set(ref(rtdb, "system_settings"), settings);
-};
+// ===============================
+// STATUS / TEST
+// ===============================
 
-// firebase connection check
-export const checkFirebaseConnection = () => {
-  return new Promise((resolve) => {
-    const testRef = ref(rtdb, ".info/connected");
-    onValue(testRef, (snap) => resolve(snap.val()));
+export const saveTestResult = async (uid: string, data: any) =>
+  setDoc(doc(db, "users", uid, "test_results", Date.now().toString()), data);
+
+export const updateUserStatus = async (uid: string) =>
+  update(ref(rtdb, `users/${uid}`), {
+    lastActiveTime: new Date().toISOString()
   });
-};
-
-// ===============================
-// 🚨 FORCE EXPORT (ROLLUP FIX)
-// ===============================
-export { bulkSaveLinks };
 
 export default app;
